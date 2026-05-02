@@ -3,6 +3,33 @@ import FAVICON from '../favicon.ico';
 
 export default {
   async fetch(request, env) {
+    // 自动初始化数据库
+    try {
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, created_at TEXT DEFAULT (datetime('now')))`).run();
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, user_id INTEGER, created_at TEXT DEFAULT (datetime('now')))`).run();
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT, category TEXT DEFAULT '工作', sort_order INTEGER DEFAULT 0, user_id INTEGER, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))`).run();
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT DEFAULT (datetime('now')))`).run();
+      
+      // 插入默认用户
+      const userCheck = await env.DB.prepare("SELECT * FROM users LIMIT 1").first();
+      if (!userCheck) {
+        await env.DB.prepare("INSERT OR IGNORE INTO users (username, password) VALUES ('yybtech', 'violet2008')").run();
+        await env.DB.prepare("INSERT OR IGNORE INTO users (username, password) VALUES ('admin', 'admin123')").run();
+      }
+
+      // 检查是否需要插入默认分类
+      const catCheck = await env.DB.prepare("SELECT * FROM categories LIMIT 1").first();
+      if (!catCheck) {
+        // 为每个用户插入默认分类
+        const { results: users } = await env.DB.prepare("SELECT id FROM users").all();
+        for (const user of users) {
+          await env.DB.prepare("INSERT OR IGNORE INTO categories (name, user_id) VALUES ('工作', ?), ('生活', ?), ('灵感', ?)").bind(user.id, user.id, user.id).run();
+        }
+      }
+    } catch (e) {
+      console.log("DB Init Error: ", e);
+    }
+
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method;
@@ -37,42 +64,55 @@ export default {
         return await login(request, env.DB, corsHeaders);
       }
 
-      // All other API routes require auth
+      // All other API routes
       if (pathname.startsWith('/api/')) {
         const session = await authenticate(request, env.DB);
-        if (!session) {
-          return jsonResponse({ error: '未登录' }, 401, corsHeaders);
-        }
-
+        
+        // 登录接口和不需要认证的接口
         if (pathname === '/api/logout' && method === 'POST') {
           return await logout(request, env.DB, corsHeaders);
         }
 
         if (pathname === '/api/me' && method === 'GET') {
-          return jsonResponse({ id: session.user_id, username: session.username }, 200, corsHeaders);
-        }
-
-        if (pathname === '/api/users' && method === 'GET') {
-          return await getUsers(env.DB, corsHeaders);
-        }
-
-        if (pathname === '/api/notes' && method === 'GET') {
-          return await getNotes(env.DB, corsHeaders);
-        }
-
-        if (pathname === '/api/notes' && method === 'POST') {
-          return await createNote(request, env.DB, corsHeaders, session.user_id);
-        }
-
-        const noteMatch = pathname.match(/^\/api\/notes\/(\d+)$/);
-        if (noteMatch) {
-          const id = parseInt(noteMatch[1]);
-          if (method === 'PUT') {
-            return await updateNote(id, request, env.DB, corsHeaders);
+          if (session) {
+            return jsonResponse({ id: session.user_id, username: session.username }, 200, corsHeaders);
+          } else {
+            return jsonResponse({ error: '未登录' }, 401, corsHeaders);
           }
-          if (method === 'DELETE') {
-            return await deleteNote(id, env.DB, corsHeaders);
+        }
+
+        // 分类接口
+        if (pathname === '/api/categories') {
+          if (method === 'GET') {
+            return await getCategories(env.DB, session, corsHeaders);
           }
+          if (method === 'POST') {
+            return await createCategory(request, env.DB, session, corsHeaders);
+          }
+        }
+        
+        if (pathname.startsWith('/api/categories/') && method === 'DELETE') {
+          const id = pathname.split('/').pop();
+          return await deleteCategory(id, env.DB, session, corsHeaders);
+        }
+
+        // 笔记接口
+        if (pathname === '/api/notes') {
+          if (method === 'GET') {
+            return await getNotes(env.DB, session, corsHeaders);
+          }
+          if (method === 'POST') {
+            return await saveNote(request, env.DB, session, corsHeaders);
+          }
+        }
+
+        if (pathname.startsWith('/api/notes/') && method === 'DELETE') {
+          const id = pathname.split('/').pop();
+          return await deleteNote(id, env.DB, session, corsHeaders);
+        }
+
+        if (pathname === '/api/order' && method === 'POST') {
+          return await saveOrder(request, env.DB, session, corsHeaders);
         }
       }
 
@@ -129,6 +169,13 @@ async function login(request, db, corsHeaders) {
   if (!user) {
     return jsonResponse({ error: '用户名或密码错误' }, 401, corsHeaders);
   }
+  
+  // 为新登录的用户创建默认分类（如果没有的话）
+  const userCats = await db.prepare("SELECT * FROM categories WHERE user_id = ? LIMIT 1").bind(user.id).first();
+  if (!userCats) {
+    await db.prepare("INSERT OR IGNORE INTO categories (name, user_id) VALUES ('工作', ?), ('生活', ?), ('灵感', ?)").bind(user.id, user.id, user.id).run();
+  }
+  
   const token = generateToken();
   await db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').bind(token, user.id).run();
   return new Response(JSON.stringify({ id: user.id, username: user.username }), {
@@ -157,49 +204,68 @@ async function logout(request, db, corsHeaders) {
   });
 }
 
-async function getUsers(db, corsHeaders) {
-  const { results } = await db.prepare('SELECT id, username, created_at FROM users').all();
+async function getCategories(db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
+  const { results } = await db.prepare('SELECT * FROM categories WHERE user_id = ?').bind(session.user_id).all();
   return jsonResponse(results, 200, corsHeaders);
 }
 
-async function getNotes(db, corsHeaders) {
+async function createCategory(request, db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
+  const { name } = await request.json();
+  if (!name) return jsonResponse({ error: '分类名称不能为空' }, 400, corsHeaders);
+  try {
+    const result = await db.prepare('INSERT INTO categories (name, user_id) VALUES (?, ?)').bind(name, session.user_id).run();
+    return jsonResponse({ success: true, id: result.meta.last_row_id }, 201, corsHeaders);
+  } catch (e) {
+    return jsonResponse({ success: true }, 200, corsHeaders); // 忽略重复插入
+  }
+}
+
+async function deleteCategory(id, db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
+  await db.prepare('DELETE FROM categories WHERE id = ? AND user_id = ?').bind(id, session.user_id).run();
+  return jsonResponse({ success: true }, 200, corsHeaders);
+}
+
+async function getNotes(db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
   const { results } = await db
-    .prepare(
-      `SELECT notes.id, notes.title, notes.content, notes.user_id,
-              users.username, notes.created_at, notes.updated_at
-       FROM notes
-       JOIN users ON notes.user_id = users.id
-       ORDER BY notes.updated_at DESC`
-    )
+    .prepare('SELECT * FROM notes WHERE user_id = ? ORDER BY sort_order ASC, created_at DESC')
+    .bind(session.user_id)
     .all();
   return jsonResponse(results, 200, corsHeaders);
 }
 
-async function createNote(request, db, corsHeaders, userId) {
-  const { title, content } = await request.json();
-  if (!title) {
-    return jsonResponse({ error: 'title is required' }, 400, corsHeaders);
+async function saveNote(request, db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
+  const { id, title, content, category } = await request.json();
+  if (id) {
+    await db
+      .prepare("UPDATE notes SET title = ?, content = ?, category = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?")
+      .bind(title, content || '', category || '工作', id, session.user_id)
+      .run();
+    return jsonResponse({ success: true, id, title, content, category }, 200, corsHeaders);
+  } else {
+    const result = await db
+      .prepare('INSERT INTO notes (title, content, category, user_id) VALUES (?, ?, ?, ?)')
+      .bind(title, content || '', category || '工作', session.user_id)
+      .run();
+    return jsonResponse({ success: true, id: result.meta.last_row_id, title, content, category }, 201, corsHeaders);
   }
-  const result = await db
-    .prepare('INSERT INTO notes (title, content, user_id) VALUES (?, ?, ?)')
-    .bind(title, content || '', userId)
-    .run();
-  return jsonResponse({ id: result.meta.last_row_id, title, content, user_id: userId }, 201, corsHeaders);
 }
 
-async function updateNote(id, request, db, corsHeaders) {
-  const { title, content } = await request.json();
-  if (!title) {
-    return jsonResponse({ error: 'title is required' }, 400, corsHeaders);
-  }
-  await db
-    .prepare("UPDATE notes SET title = ?, content = ?, updated_at = datetime('now') WHERE id = ?")
-    .bind(title, content || '', id)
-    .run();
-  return jsonResponse({ id, title, content }, 200, corsHeaders);
+async function deleteNote(id, db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
+  await db.prepare('DELETE FROM notes WHERE id = ? AND user_id = ?').bind(id, session.user_id).run();
+  return jsonResponse({ success: true }, 200, corsHeaders);
 }
 
-async function deleteNote(id, db, corsHeaders) {
-  await db.prepare('DELETE FROM notes WHERE id = ?').bind(id).run();
+async function saveOrder(request, db, session, corsHeaders) {
+  if (!session) return jsonResponse({ error: '未登录' }, 401, corsHeaders);
+  const { order } = await request.json();
+  for (let i = 0; i < order.length; i++) {
+    await db.prepare('UPDATE notes SET sort_order = ? WHERE id = ? AND user_id = ?').bind(i, order[i], session.user_id).run();
+  }
   return jsonResponse({ success: true }, 200, corsHeaders);
 }

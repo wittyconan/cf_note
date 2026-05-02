@@ -1,378 +1,438 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>云笔记 - 轻量在线笔记管理工具</title>
-  <meta name="description" content="基于 Cloudflare Workers 的轻量云笔记应用，支持笔记的创建、编辑、删除与管理，随时随地记录你的想法。">
-  <meta name="keywords" content="云笔记,在线笔记,笔记管理,Cloudflare Workers,轻量笔记,note,私有云">
-  <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
-
-    /* 登录页 */
-    .login-page { display: none; justify-content: center; align-items: center; min-height: 100vh; }
-    .login-page.show { display: flex; }
-    .login-box { background: #fff; border-radius: 8px; padding: 32px; width: 90%; max-width: 360px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
-    .login-box h2 { text-align: center; margin-bottom: 24px; font-size: 20px; color: #1a1a1a; }
-    .login-box label { display: block; font-size: 14px; color: #666; margin-bottom: 4px; }
-    .login-box input { width: 100%; padding: 10px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; margin-bottom: 16px; transition: border-color 0.2s; }
-    .login-box input:focus { outline: none; border-color: #1677ff; }
-    .login-box .btn-login { width: 100%; padding: 10px; background: #1677ff; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; transition: background 0.2s; }
-    .login-box .btn-login:hover { background: #4096ff; }
-    .login-error { color: #ff4d4f; font-size: 13px; text-align: center; margin-bottom: 12px; display: none; }
-
-    /* 顶部导航 */
-    .navbar { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
-    .navbar-brand { display: flex; align-items: center; gap: 8px; }
-    .navbar-brand svg { width: 28px; height: 28px; }
-    .navbar h1 { font-size: 20px; color: #1a1a1a; }
-    .nav-right { display: flex; align-items: center; gap: 12px; }
-    .nav-tabs { display: flex; gap: 8px; }
-    .nav-tabs button { padding: 6px 16px; border: 1px solid #d9d9d9; background: #fff; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
-    .nav-tabs button.active { background: #1677ff; color: #fff; border-color: #1677ff; }
-    .nav-tabs button:hover:not(.active) { border-color: #1677ff; color: #1677ff; }
-    .user-info { font-size: 13px; color: #666; }
-    .btn-logout { padding: 4px 12px; border: 1px solid #d9d9d9; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; color: #666; transition: all 0.2s; }
-    .btn-logout:hover { border-color: #ff4d4f; color: #ff4d4f; }
-
-    /* 主内容区 */
-    .container { max-width: 800px; margin: 24px auto; padding: 0 16px; }
-
-    /* 笔记列表 */
-    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .section-header h2 { font-size: 18px; }
-    .btn-primary { padding: 8px 16px; background: #1677ff; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
-    .btn-primary:hover { background: #4096ff; }
-
-    .note-list { display: flex; flex-direction: column; gap: 12px; }
-    .note-card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: box-shadow 0.2s; }
-    .note-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-    .note-card h3 { font-size: 16px; margin-bottom: 8px; color: #1a1a1a; }
-    .note-card p { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; }
-    .note-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #999; }
-    .note-actions { display: flex; gap: 8px; }
-    .note-actions button { padding: 4px 10px; border: 1px solid #d9d9d9; background: #fff; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
-    .note-actions .btn-edit:hover { border-color: #1677ff; color: #1677ff; }
-    .note-actions .btn-delete { color: #ff4d4f; border-color: #ff4d4f; }
-    .note-actions .btn-delete:hover { background: #ff4d4f; color: #fff; }
-
-    .empty-state { text-align: center; padding: 48px; color: #999; font-size: 14px; }
-
-    /* 用户列表 */
-    .user-table { width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .user-table th, .user-table td { padding: 12px 16px; text-align: left; font-size: 14px; }
-    .user-table th { background: #fafafa; color: #666; font-weight: 500; border-bottom: 1px solid #f0f0f0; }
-    .user-table td { border-bottom: 1px solid #f0f0f0; }
-
-    /* 弹窗 */
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 100; justify-content: center; align-items: center; }
-    .modal-overlay.show { display: flex; }
-    .modal { background: #fff; border-radius: 8px; padding: 24px; width: 90%; max-width: 520px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-    .modal h3 { font-size: 16px; margin-bottom: 20px; }
-    .modal label { display: block; font-size: 14px; color: #666; margin-bottom: 4px; }
-    .modal input, .modal textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; margin-bottom: 16px; font-family: inherit; transition: border-color 0.2s; }
-    .modal input:focus, .modal textarea:focus { outline: none; border-color: #1677ff; }
-    .modal textarea { min-height: 160px; resize: vertical; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    .modal-actions button { padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; border: 1px solid #d9d9d9; transition: all 0.2s; }
-    .btn-cancel { background: #fff; }
-    .btn-cancel:hover { border-color: #1677ff; color: #1677ff; }
-    .btn-save { background: #1677ff; color: #fff; border-color: #1677ff; }
-    .btn-save:hover { background: #4096ff; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云笔记 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <style>
+        body { background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .ql-container { font-size: 16px; border: none !important; height: 350px; }
+        .ql-toolbar { border: none !important; border-bottom: 1px solid #f1f5f9 !important; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .note-card { transition: all 0.3s ease; }
+        .note-card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+    </style>
 </head>
 <body>
+    <div id="app" class="max-w-6xl mx-auto p-4 md:p-8">
+        <!-- 登录页面 -->
+        <div id="login-section" class="flex items-center justify-center h-[80vh]">
+            <div class="bg-white p-10 rounded-[2rem] shadow-2xl w-full max-w-md text-center">
+                <div class="mb-6">
+                    <svg viewBox="0 0 24 24" fill="none" class="w-16 h-16 mx-auto" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" fill="#4f46e5" opacity="0.1"/>
+                        <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M14 2V6C14 7.10457 14.8954 8 16 8H20" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M8 13H16M8 17H13" stroke="#4f46e5" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold mb-8 text-gray-800">云笔记 Pro</h1>
+                <div id="login-error" class="text-red-500 mb-4 hidden"></div>
+                <input type="text" id="username" class="w-full p-4 mb-4 bg-gray-50 rounded-2xl outline-none border border-gray-100 focus:border-indigo-500" placeholder="账号" value="yybtech">
+                <input type="password" id="password" class="w-full p-4 mb-6 bg-gray-50 rounded-2xl outline-none border border-gray-100 focus:border-indigo-500" placeholder="密码" value="violet2008">
+                <button onclick="handleLogin()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all">登录</button>
+                <div class="mt-6 text-sm text-gray-400">
+                    <p>默认账号：yybtech / violet2008</p>
+                    <p>或 admin / admin123</p>
+                </div>
+            </div>
+        </div>
 
-  <!-- 登录页 -->
-  <div id="login-page" class="login-page">
-    <div class="login-box">
-      <h2>云笔记登录</h2>
-      <div id="login-error" class="login-error"></div>
-      <label>用户名</label>
-      <input type="text" id="login-username" placeholder="请输入用户名" value="admin">
-      <label>密码</label>
-      <input type="password" id="login-password" placeholder="请输入密码">
-      <button class="btn-login" onclick="doLogin()">登 录</button>
+        <!-- 主应用 -->
+        <div id="main-section" class="hidden">
+            <!-- 顶部导航 -->
+            <header class="mb-10 bg-white p-6 rounded-[2rem] shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                    <div class="flex items-center gap-4">
+                        <svg viewBox="0 0 24 24" fill="none" class="w-10 h-10" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" fill="#4f46e5" opacity="0.1"/>
+                            <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/>
+                            <path d="M14 2V6C14 7.10457 14.8954 8 16 8H20" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/>
+                            <path d="M8 13H16M8 17H13" stroke="#4f46e5" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <h1 class="text-2xl font-bold text-gray-800">我的笔记</h1>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span id="current-user" class="text-gray-500 font-medium"></span>
+                        <button onclick="handleLogout()" class="px-4 py-2 text-gray-500 hover:text-red-500 transition-colors">退出</button>
+                    </div>
+                </div>
+                
+                <!-- 分类标签 -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar" id="category-tabs"></div>
+                
+                <!-- 操作按钮 -->
+                <div class="mt-6 flex gap-4">
+                    <button onclick="showEditor()" class="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all">
+                        <span class="mr-2">+</span>新建笔记
+                    </button>
+                    <button onclick="manageCategories()" class="px-6 py-3 bg-gray-100 text-gray-600 rounded-2xl hover:bg-gray-200 transition-all">
+                        管理标签
+                    </button>
+                </div>
+            </header>
+            
+            <!-- 笔记列表 -->
+            <div id="notes-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            
+            <!-- 空状态 -->
+            <div id="empty-state" class="hidden text-center py-16">
+                <svg viewBox="0 0 24 24" fill="none" class="w-24 h-24 mx-auto mb-6 opacity-30" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M14 2V6C14 7.10457 14.8954 8 16 8H20" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M8 13H16M8 17H13" stroke="#4f46e5" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <p class="text-gray-400 text-lg">暂无笔记，点击上方新建笔记</p>
+            </div>
+        </div>
+
+        <!-- 分类管理弹窗 -->
+        <div id="category-modal" class="fixed inset-0 bg-gray-900/40 hidden z-[60] flex items-center justify-center p-4 backdrop-blur-md">
+            <div class="bg-white w-full max-w-md p-8 rounded-[2rem] shadow-2xl">
+                <h3 class="text-xl font-bold mb-6 text-gray-800">管理自定义标签</h3>
+                <div id="category-edit-list" class="space-y-2 mb-6 max-h-60 overflow-y-auto pr-2"></div>
+                <div class="flex gap-2">
+                    <input type="text" id="new-cat-name" placeholder="新增标签名称" class="flex-1 p-3 bg-gray-50 rounded-xl outline-none border border-gray-100 focus:border-indigo-500">
+                    <button onclick="addCategory()" class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-xl hover:opacity-90 transition-all">添加</button>
+                </div>
+                <button onclick="closeCategoryModal()" class="w-full mt-6 py-3 border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all">完成</button>
+            </div>
+        </div>
+
+        <!-- 编辑器弹窗 -->
+        <div id="editor-modal" class="fixed inset-0 bg-gray-900/40 hidden z-50 flex items-center justify-center p-4 backdrop-blur-md">
+            <div class="bg-white w-full max-w-4xl p-6 md:p-8 rounded-[2rem] shadow-2xl">
+                <div class="flex items-center gap-4 mb-4">
+                    <select id="note-category" class="bg-indigo-50 text-indigo-600 font-bold px-4 py-2 rounded-xl border-none outline-none">
+                    </select>
+                    <input type="text" id="note-title" placeholder="输入标题..." class="flex-1 text-2xl font-bold outline-none border-none text-gray-800">
+                </div>
+                <div id="editor-container" class="mb-6 rounded-2xl border border-gray-100 overflow-hidden"></div>
+                <div class="flex justify-between items-center">
+                    <button id="delete-btn" onclick="handleDelete()" class="text-red-400 hover:text-red-600 transition-colors">删除</button>
+                    <div class="flex gap-3">
+                        <button onclick="hideEditor()" class="px-6 py-2 text-gray-400 hover:text-gray-600 transition-colors">取消</button>
+                        <button onclick="saveNote()" class="px-10 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- 主应用（登录后显示） -->
-  <div id="app" style="display:none;">
-    <nav class="navbar">
-      <div class="navbar-brand">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" fill="#1677ff" opacity="0.15"/>
-          <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" stroke="#1677ff" stroke-width="1.5" stroke-linejoin="round"/>
-          <path d="M14 2V6C14 7.10457 14.8954 8 16 8H20" stroke="#1677ff" stroke-width="1.5" stroke-linejoin="round"/>
-          <path d="M8 13H16M8 17H13" stroke="#1677ff" stroke-width="1.5" stroke-linecap="round"/>
-          <circle cx="17.5" cy="17.5" r="4.5" fill="#fff" stroke="#1677ff" stroke-width="1.5"/>
-          <path d="M16.5 17.5L17.25 18.25L18.75 16.75" stroke="#1677ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <h1>云笔记</h1>
-      </div>
-      <div class="nav-right">
-        <div class="nav-tabs">
-          <button class="active" onclick="switchTab('notes')">笔记</button>
-          <button onclick="switchTab('users')">用户</button>
-        </div>
-        <span class="user-info" id="current-user"></span>
-        <button class="btn-logout" onclick="doLogout()">退出</button>
-      </div>
-    </nav>
+    <script>
+        let currentNoteId = null;
+        let quill;
+        let activeCategory = '全部';
+        let dbCategories = [];
+        let currentUser = null;
 
-    <div class="container">
-      <div id="notes-section">
-        <div class="section-header">
-          <h2>笔记列表</h2>
-          <button class="btn-primary" onclick="openCreateModal()">+ 新建笔记</button>
-        </div>
-        <div id="note-list" class="note-list">
-          <div class="empty-state">加载中...</div>
-        </div>
-      </div>
+        // 初始化
+        window.onload = async () => {
+            quill = new Quill('#editor-container', {
+                theme: 'snow',
+                modules: { 
+                    toolbar: [
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['blockquote', 'code-block'],
+                        ['link', 'image'],
+                        ['clean']
+                    ] 
+                }
+            });
+            
+            await checkAuth();
+        };
 
-      <div id="users-section" style="display:none;">
-        <div class="section-header">
-          <h2>用户列表</h2>
-        </div>
-        <table class="user-table">
-          <thead>
-            <tr><th>ID</th><th>用户名</th><th>创建时间</th></tr>
-          </thead>
-          <tbody id="user-list"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+        // 检查登录状态
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/me');
+                if (res.ok) {
+                    currentUser = await res.json();
+                    showMain();
+                } else {
+                    showLogin();
+                }
+            } catch (e) {
+                showLogin();
+            }
+        }
 
-  <!-- 新建/编辑弹窗 -->
-  <div id="note-modal" class="modal-overlay">
-    <div class="modal">
-      <h3 id="modal-title">新建笔记</h3>
-      <input type="hidden" id="note-id">
-      <label>标题</label>
-      <input type="text" id="note-title-input" placeholder="请输入标题">
-      <label>内容</label>
-      <textarea id="note-content-input" placeholder="请输入内容"></textarea>
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeModal()">取消</button>
-        <button class="btn-save" onclick="saveNote()">保存</button>
-      </div>
-    </div>
-  </div>
+        function showLogin() {
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('main-section').classList.add('hidden');
+        }
 
-<script>
-  const API_BASE = '';
+        function showMain() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('main-section').classList.remove('hidden');
+            document.getElementById('current-user').textContent = currentUser ? `欢迎，${currentUser.username}` : '';
+            refreshCategories();
+            loadNotes();
+        }
 
-  // --- 登录/登出 ---
-  async function checkAuth() {
-    try {
-      const res = await fetch(API_BASE + '/api/me');
-      if (res.ok) {
-        const user = await res.json();
-        showApp(user);
-        return;
-      }
-    } catch (e) {}
-    showLogin();
-  }
+        async function handleLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('login-error');
+            
+            try {
+                const res = await fetch('/api/login', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({username, password}) 
+                });
+                
+                if (res.ok) {
+                    currentUser = await res.json();
+                    showMain();
+                } else {
+                    errorEl.textContent = '账号或密码错误！';
+                    errorEl.classList.remove('hidden');
+                    setTimeout(() => errorEl.classList.add('hidden'), 3000);
+                }
+            } catch (e) {
+                errorEl.textContent = '网络错误，请重试';
+                errorEl.classList.remove('hidden');
+                setTimeout(() => errorEl.classList.add('hidden'), 3000);
+            }
+        }
 
-  function showLogin() {
-    document.getElementById('login-page').classList.add('show');
-    document.getElementById('app').style.display = 'none';
-  }
+        async function handleLogout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (e) {}
+            currentUser = null;
+            showLogin();
+            document.getElementById('password').value = '';
+        }
 
-  function showApp(user) {
-    document.getElementById('login-page').classList.remove('show');
-    document.getElementById('app').style.display = '';
-    document.getElementById('current-user').textContent = user.username;
-    loadNotes();
-  }
+        async function refreshCategories() {
+            try {
+                const res = await fetch('/api/categories');
+                if (res.ok) {
+                    dbCategories = await res.json();
+                    
+                    // 顶部导航栏包含固定项"全部"
+                    const tabsHtml = `<button onclick="switchCategory('全部')" class="px-5 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${activeCategory === '全部' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-100'}">全部</button>` 
+                        + dbCategories.map(c => `
+                        <button onclick="switchCategory('${escapeHtml(c.name)}')" class="px-5 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${activeCategory === c.name ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-100'}">
+                            ${escapeHtml(c.name)}
+                        </button>`).join('');
+                    document.getElementById('category-tabs').innerHTML = tabsHtml;
+                    
+                    // 编辑器的下拉菜单（不包含"全部"）
+                    document.getElementById('note-category').innerHTML = dbCategories.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+                }
+            } catch (e) {
+                console.error('加载分类失败', e);
+            }
+        }
 
-  async function doLogin() {
-    const username = document.getElementById('login-username').value.trim();
-    const password = document.getElementById('login-password').value.trim();
-    const errorEl = document.getElementById('login-error');
-    errorEl.style.display = 'none';
+        function switchCategory(cat) { 
+            activeCategory = cat; 
+            refreshCategories(); 
+            loadNotes(); 
+        }
 
-    if (!username || !password) {
-      errorEl.textContent = '请输入用户名和密码';
-      errorEl.style.display = 'block';
-      return;
-    }
+        async function loadNotes() {
+            try {
+                const res = await fetch('/api/notes');
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        showLogin();
+                        return;
+                    }
+                    throw new Error('加载笔记失败');
+                }
+                
+                let notes = await res.json();
+                
+                if (activeCategory !== '全部') {
+                    notes = notes.filter(n => n.category === activeCategory);
+                }
+                
+                const list = document.getElementById('notes-list');
+                const emptyState = document.getElementById('empty-state');
+                
+                if (notes.length === 0) {
+                    list.innerHTML = '';
+                    emptyState.classList.remove('hidden');
+                    return;
+                }
+                
+                emptyState.classList.add('hidden');
+                list.innerHTML = notes.map(n => `
+                    <div class="note-card bg-white p-6 rounded-[2rem] shadow-sm cursor-pointer border border-gray-50" 
+                         data-id="${n.id}" onclick="editNote(${n.id}, '${escapeAttr(n.title)}', '${escapeAttr(n.content)}', '${escapeAttr(n.category)}')">
+                        <span class="text-[10px] font-bold text-indigo-400 uppercase bg-indigo-50 px-2 py-1 rounded-md">${escapeHtml(n.category)}</span>
+                        <h3 class="font-bold text-lg text-gray-800 mt-3 mb-2 truncate">${escapeHtml(n.title) || '无标题'}</h3>
+                        <div class="text-gray-400 text-sm line-clamp-2">${stripHtml(n.content)}</div>
+                        <div class="text-gray-300 text-xs mt-3">${formatTime(n.updated_at || n.created_at)}</div>
+                    </div>`).join('');
+                
+                // 初始化拖拽排序
+                Sortable.create(list, { 
+                    animation: 150, 
+                    onEnd: saveOrder 
+                });
+            } catch (e) {
+                console.error('加载笔记失败', e);
+            }
+        }
 
-    try {
-      const res = await fetch(API_BASE + '/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        errorEl.textContent = data.error || '登录失败';
-        errorEl.style.display = 'block';
-        return;
-      }
-      showApp(data);
-    } catch (e) {
-      errorEl.textContent = '网络错误，请重试';
-      errorEl.style.display = 'block';
-    }
-  }
+        async function saveNote() {
+            const title = document.getElementById('note-title').value;
+            const category = document.getElementById('note-category').value || '工作';
+            const content = quill.root.innerHTML;
+            
+            try {
+                await fetch('/api/notes', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id: currentNoteId, title, content, category }) 
+                });
+                hideEditor(); 
+                loadNotes();
+            } catch (e) {
+                alert('保存失败，请重试');
+            }
+        }
 
-  async function doLogout() {
-    try {
-      await fetch(API_BASE + '/api/logout', { method: 'POST' });
-    } catch (e) {}
-    showLogin();
-    document.getElementById('login-password').value = '';
-  }
+        // 分类管理逻辑
+        function manageCategories() { 
+            document.getElementById('category-modal').classList.remove('hidden'); 
+            renderCategoryEditList(); 
+        }
+        
+        function renderCategoryEditList() {
+            const list = document.getElementById('category-edit-list');
+            list.innerHTML = dbCategories.map(c => `
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                    <span class="font-medium text-gray-700">${escapeHtml(c.name)}</span>
+                    <button onclick="deleteCategory(${c.id})" class="text-red-400 text-sm hover:text-red-600 font-bold">删除</button>
+                </div>`).join('');
+        }
 
-  // 密码框回车登录
-  document.getElementById('login-password').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') doLogin();
-  });
+        async function addCategory() {
+            const name = document.getElementById('new-cat-name').value.trim();
+            if(!name) return;
+            
+            try {
+                await fetch('/api/categories', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name }) 
+                });
+                document.getElementById('new-cat-name').value = '';
+                await refreshCategories(); 
+                renderCategoryEditList();
+            } catch (e) {
+                alert('添加分类失败');
+            }
+        }
 
-  // --- Tab 切换 ---
-  function switchTab(tab) {
-    document.querySelectorAll('.nav-tabs button').forEach(btn => btn.classList.remove('active'));
-    if (tab === 'notes') {
-      document.querySelector('.nav-tabs button:nth-child(1)').classList.add('active');
-      document.getElementById('notes-section').style.display = '';
-      document.getElementById('users-section').style.display = 'none';
-    } else {
-      document.querySelector('.nav-tabs button:nth-child(2)').classList.add('active');
-      document.getElementById('notes-section').style.display = 'none';
-      document.getElementById('users-section').style.display = '';
-      loadUsers();
-    }
-  }
+        async function deleteCategory(id) {
+            if(dbCategories.length <= 1) {
+                return alert('请至少保留一个自定义标签用于存放笔记！');
+            }
+            if(confirm('删除标签不会删除该标签下的笔记，确定要删除吗？')) {
+                try {
+                    await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+                    await refreshCategories(); 
+                    renderCategoryEditList();
+                } catch (e) {
+                    alert('删除分类失败');
+                }
+            }
+        }
+        
+        function closeCategoryModal() { 
+            document.getElementById('category-modal').classList.add('hidden'); 
+        }
 
-  // --- 笔记 CRUD ---
-  async function loadNotes() {
-    try {
-      const res = await fetch(API_BASE + '/api/notes');
-      if (res.status === 401) { showLogin(); return; }
-      const notes = await res.json();
-      renderNotes(notes);
-    } catch (e) {
-      document.getElementById('note-list').innerHTML = '<div class="empty-state">加载失败，请刷新重试</div>';
-    }
-  }
+        // 编辑器操作逻辑
+        function showEditor() { 
+            currentNoteId = null; 
+            document.getElementById('note-title').value = ''; 
+            quill.root.innerHTML = ''; 
+            document.getElementById('delete-btn').classList.add('hidden'); 
+            document.getElementById('editor-modal').classList.remove('hidden'); 
+        }
+        
+        function hideEditor() { 
+            document.getElementById('editor-modal').classList.add('hidden'); 
+        }
+        
+        function editNote(id, title, content, category) {
+            currentNoteId = id; 
+            document.getElementById('note-title').value = title; 
+            document.getElementById('note-category').value = category || '工作';
+            quill.root.innerHTML = content; 
+            document.getElementById('delete-btn').classList.remove('hidden'); 
+            document.getElementById('editor-modal').classList.remove('hidden');
+        }
+        
+        async function handleDelete() { 
+            if(!currentNoteId) return;
+            if(confirm('彻底删除这条笔记？')) {
+                try {
+                    await fetch(`/api/notes/${currentNoteId}`, { method: 'DELETE' });
+                    hideEditor(); 
+                    loadNotes();
+                } catch (e) {
+                    alert('删除笔记失败');
+                }
+            } 
+        }
+        
+        async function saveOrder() {
+            const order = Array.from(document.querySelectorAll('.note-card')).map(el => el.dataset.id);
+            try {
+                await fetch('/api/order', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ order }) 
+                });
+            } catch (e) {
+                console.error('保存排序失败', e);
+            }
+        }
 
-  function renderNotes(notes) {
-    const container = document.getElementById('note-list');
-    if (!notes.length) {
-      container.innerHTML = '<div class="empty-state">暂无笔记，点击右上角新建</div>';
-      return;
-    }
-    container.innerHTML = notes.map(note => `
-      <div class="note-card">
-        <h3>${escapeHtml(note.title)}</h3>
-        <p>${escapeHtml(note.content)}</p>
-        <div class="note-meta">
-          <span>${note.username} · ${formatTime(note.updated_at)}</span>
-          <div class="note-actions">
-            <button class="btn-edit" onclick="openEditModal(${note.id}, '${escapeAttr(note.title)}', '${escapeAttr(note.content)}')">编辑</button>
-            <button class="btn-delete" onclick="deleteNote(${note.id})">删除</button>
-          </div>
-        </div>
-      </div>
-    `).join('');
-  }
+        // 工具函数
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str || '';
+            return div.innerHTML;
+        }
 
-  function openCreateModal() {
-    document.getElementById('modal-title').textContent = '新建笔记';
-    document.getElementById('note-id').value = '';
-    document.getElementById('note-title-input').value = '';
-    document.getElementById('note-content-input').value = '';
-    document.getElementById('note-modal').classList.add('show');
-  }
+        function escapeAttr(str) {
+            return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        }
 
-  function openEditModal(id, title, content) {
-    document.getElementById('modal-title').textContent = '编辑笔记';
-    document.getElementById('note-id').value = id;
-    document.getElementById('note-title-input').value = title;
-    document.getElementById('note-content-input').value = content;
-    document.getElementById('note-modal').classList.add('show');
-  }
+        function stripHtml(str) {
+            const div = document.createElement('div');
+            div.innerHTML = str || '';
+            return div.textContent || div.innerText || '';
+        }
 
-  function closeModal() {
-    document.getElementById('note-modal').classList.remove('show');
-  }
-
-  async function saveNote() {
-    const id = document.getElementById('note-id').value;
-    const title = document.getElementById('note-title-input').value.trim();
-    const content = document.getElementById('note-content-input').value.trim();
-
-    if (!title) { alert('请输入标题'); return; }
-
-    try {
-      if (id) {
-        await fetch(API_BASE + '/api/notes/' + id, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, content }),
-        });
-      } else {
-        await fetch(API_BASE + '/api/notes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, content }),
-        });
-      }
-      closeModal();
-      loadNotes();
-    } catch (e) {
-      alert('保存失败: ' + e.message);
-    }
-  }
-
-  async function deleteNote(id) {
-    if (!confirm('确定要删除这条笔记吗？')) return;
-    try {
-      await fetch(API_BASE + '/api/notes/' + id, { method: 'DELETE' });
-      loadNotes();
-    } catch (e) {
-      alert('删除失败: ' + e.message);
-    }
-  }
-
-  // --- 用户列表 ---
-  async function loadUsers() {
-    try {
-      const res = await fetch(API_BASE + '/api/users');
-      if (res.status === 401) { showLogin(); return; }
-      const users = await res.json();
-      document.getElementById('user-list').innerHTML = users.map(u => `
-        <tr><td>${u.id}</td><td>${escapeHtml(u.username)}</td><td>${formatTime(u.created_at)}</td></tr>
-      `).join('');
-    } catch (e) {
-      document.getElementById('user-list').innerHTML = '<tr><td colspan="3">加载失败</td></tr>';
-    }
-  }
-
-  // --- 工具函数 ---
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str || '';
-    return div.innerHTML;
-  }
-
-  function escapeAttr(str) {
-    return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
-  }
-
-  function formatTime(t) {
-    if (!t) return '';
-    return t.replace('T', ' ').substring(0, 19);
-  }
-
-  // 初始化：检查登录状态
-  checkAuth();
-</script>
+        function formatTime(t) {
+            if (!t) return '';
+            const date = new Date(t.replace(' ', 'T'));
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    </script>
 </body>
 </html>
