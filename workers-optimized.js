@@ -46,7 +46,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
                         <svg viewBox="0 0 24 24" fill="none" class="w-12 h-12" xmlns="http://www.w3.org/2000/svg">
                             <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" fill="white" opacity="0.3"/>
                             <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-                            <path d="M8 13H16M8 17H13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M8 13H16M8 17H13" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
                         </svg>
                     </div>
                     <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">云笔记 Pro</h1>
@@ -75,7 +75,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
                             <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
                                 <svg viewBox="0 0 24 24" fill="none" class="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" fill="white" opacity="0.3"/>
-                                    <path d="M8 13H16M8 17H13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+                                    <path d="M8 13H16M8 17H13" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
                                 </svg>
                             </div>
                             <div>
@@ -98,21 +98,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
                     </div>
                     
                     <!-- 分类标签 -->
-                    <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                        <button onclick="switchCategory('全部')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === '全部' ? 'active' : 'bg-gray-100 text-gray-600'}">
-                            📋 全部
-                        </button>
-                        <button onclick="switchCategory('收藏')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === '收藏' ? 'active' : 'bg-gray-100 text-gray-600'}">
-                            ⭐ 收藏
-                        </button>
-                        <button onclick="switchCategory('置顶')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === '置顶' ? 'active' : 'bg-gray-100 text-gray-600'}">
-                            📌 置顶
-                        </button>
-                        ${dbCategories.map(c => `
-                        <button onclick="switchCategory('${c.name}')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === c.name ? 'active' : 'bg-gray-100 text-gray-600'}">
-                            ${c.name}
-                        </button>`).join('')}
-                    </div>
+                    <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar" id="category-tabs"></div>
                 </div>
                 
                 <!-- 操作按钮 -->
@@ -137,7 +123,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
                     <svg viewBox="0 0 24 24" fill="none" class="w-12 h-12 text-gray-300" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 4C4 2.89543 4.89543 2 6 2H14L20 8V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
                         <path d="M14 2V6C14 7.10457 14.8954 8 16 8H20" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-                        <path d="M8 13H16M8 17H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 13H16M8 17H13" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
                     </svg>
                 </div>
                 <p class="text-gray-400 text-lg mb-2">暂无笔记</p>
@@ -180,11 +166,11 @@ const HTML_CONTENT = `<!DOCTYPE html>
                 <div id="editor-container" class="flex-1 overflow-y-auto"></div>
                 <div class="p-4 md:p-6 border-t border-gray-100 flex justify-between items-center">
                     <div class="flex gap-2">
-                        <button id="pin-btn" onclick="togglePin()" class="p-3 rounded-xl transition-all ${note.is_pinned ? 'bg-yellow-100 text-yellow-600' : 'bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-600'}" title="置顶">
+                        <button id="pin-btn" onclick="togglePin()" class="p-3 rounded-xl transition-all bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-600" title="置顶">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M15 2H9a1 1 0 00-1 1v2a1 1 0 001 1h6a1 1 0 001-1V3a1 1 0 00-1-1z"/></svg>
                         </button>
-                        <button id="favorite-btn" onclick="toggleFavorite()" class="p-3 rounded-xl transition-all ${note.is_favorite ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500'}" title="收藏">
-                            <svg class="w-5 h-5" fill="${note.is_favorite ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                        <button id="favorite-btn" onclick="toggleFavorite()" class="p-3 rounded-xl transition-all bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500" title="收藏">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                         </button>
                         <button id="delete-btn" onclick="handleDelete()" class="p-3 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all" title="删除">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -293,24 +279,21 @@ const HTML_CONTENT = `<!DOCTYPE html>
         }
 
         function renderCategories() {
-            const tabsHtml = `
-                <button onclick="switchCategory('全部')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === '全部' ? 'active' : 'bg-gray-100 text-gray-600'}">
-                    📋 全部
-                </button>
-                <button onclick="switchCategory('收藏')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === '收藏' ? 'active' : 'bg-gray-100 text-gray-600'}">
-                    ⭐ 收藏
-                </button>
-                <button onclick="switchCategory('置顶')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === '置顶' ? 'active' : 'bg-gray-100 text-gray-600'}">
-                    📌 置顶
-                </button>
-                ${dbCategories.map(c => `
-                <button onclick="switchCategory('${c.name}')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeCategory === c.name ? 'active' : 'bg-gray-100 text-gray-600'}">
-                    ${c.name}
-                </button>`).join('')}
-            `;
+            let tabsHtml = '<button onclick="switchCategory('全部')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ' + (activeCategory === '全部' ? 'active' : 'bg-gray-100 text-gray-600') + '">📋 全部</button>';
+            tabsHtml += '<button onclick="switchCategory('收藏')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ' + (activeCategory === '收藏' ? 'active' : 'bg-gray-100 text-gray-600') + '">⭐ 收藏</button>';
+            tabsHtml += '<button onclick="switchCategory('置顶')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ' + (activeCategory === '置顶' ? 'active' : 'bg-gray-100 text-gray-600') + '">📌 置顶</button>';
+            for (let i = 0; i < dbCategories.length; i++) {
+                const c = dbCategories[i];
+                tabsHtml += '<button onclick="switchCategory(' + c.name + ')" class="category-chip px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ' + (activeCategory === c.name ? 'active' : 'bg-gray-100 text-gray-600') + '">' + c.name + '</button>';
+            }
             document.getElementById('category-tabs').innerHTML = tabsHtml;
             
-            document.getElementById('note-category').innerHTML = dbCategories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            let optionsHtml = '';
+            for (let i = 0; i < dbCategories.length; i++) {
+                const c = dbCategories[i];
+                optionsHtml += '<option value="' + c.name + '">' + c.name + '</option>';
+            }
+            document.getElementById('note-category').innerHTML = optionsHtml;
         }
 
         function switchCategory(cat) { 
@@ -327,7 +310,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
             const res = await fetch('/api/notes');
             allNotes = await res.json();
             
-            let notes = [...allNotes];
+            let notes = allNotes.slice();
             
             // 筛选
             if (activeCategory === '收藏') {
@@ -349,11 +332,13 @@ const HTML_CONTENT = `<!DOCTYPE html>
             
             // 置顶优先，然后按排序
             notes.sort((a, b) => {
-                if (a.is_pinned !== b.is_pinned) return b.is_pinned ? 1 : -1;
+                if (a.is_pinned !== b.is_pinned) {
+                    return b.is_pinned ? 1 : -1;
+                }
                 return (a.sort_order || 0) - (b.sort_order || 0);
             });
             
-            document.getElementById('note-count').textContent = `共 ${notes.length} 篇笔记`;
+            document.getElementById('note-count').textContent = '共 ' + notes.length + ' 篇笔记';
             
             const list = document.getElementById('notes-list');
             const emptyState = document.getElementById('empty-state');
@@ -367,34 +352,37 @@ const HTML_CONTENT = `<!DOCTYPE html>
             emptyState.classList.add('hidden');
             
             const searchTextLower = searchText.toLowerCase();
-            list.innerHTML = notes.map(n => {
-                const title = searchText ? highlightText(escapeHtml(n.title || '无标题'), searchTextLower) : escapeHtml(n.title || '无标题');
-                const content = searchText ? highlightText(truncateText(stripHtml(n.content), 100), searchTextLower) : truncateText(stripHtml(n.content), 100);
-                const pinnedClass = n.is_pinned ? 'pinned-card' : '';
-                const favClass = n.is_favorite && !n.is_pinned ? 'favorite-card' : '';
+            let listHtml = '';
+            for (let i = 0; i < notes.length; i++) {
+                const n = notes[i];
+                let title = escapeHtml(n.title || '无标题');
+                let content = truncateText(stripHtml(n.content), 100);
+                if (searchText) {
+                    title = highlightText(title, searchTextLower);
+                    content = highlightText(content, searchTextLower);
+                }
+                let pinnedClass = n.is_pinned ? 'pinned-card' : '';
+                let favClass = n.is_favorite && !n.is_pinned ? 'favorite-card' : '';
                 
-                return `
-                <div class="note-card ${pinnedClass} ${favClass} bg-white p-5 rounded-2xl shadow-sm cursor-pointer border border-gray-100" 
-                     data-id="${n.id}" onclick="editNote(${n.id}, '${escapeAttr(n.title)}', '${escapeAttr(n.content)}', '${escapeAttr(n.category)}', ${n.is_pinned}, ${n.is_favorite})">
-                    <div class="flex items-start justify-between mb-3">
-                        <span class="text-xs font-bold text-indigo-400 uppercase bg-indigo-50 px-2 py-1 rounded-md">${escapeHtml(n.category)}</span>
-                        <div class="flex items-center gap-1">
-                            ${n.is_pinned ? '<span class="text-yellow-500">📌</span>' : ''}
-                            ${n.is_favorite ? '<span class="text-red-400">⭐</span>' : ''}
-                        </div>
-                    </div>
-                    <h3 class="font-bold text-base md:text-lg text-gray-800 mb-2 line-clamp-1">${title}</h3>
-                    <div class="text-gray-400 text-sm line-clamp-2 mb-3">${content}</div>
-                    <div class="text-xs text-gray-300">${formatTime(n.updated_at || n.created_at)}</div>
-                </div>`;
-            }).join('');
+                listHtml += '<div class="note-card ' + pinnedClass + ' ' + favClass + ' bg-white p-5 rounded-2xl shadow-sm cursor-pointer border border-gray-100" data-id="' + n.id + '" onclick="editNote(' + n.id + ', \'' + escapeAttr(n.title) + '\', \'' + escapeAttr(n.content) + '\', \'' + escapeAttr(n.category) + '\', ' + n.is_pinned + ', ' + n.is_favorite + ')">';
+                listHtml += '<div class="flex items-start justify-between mb-3">';
+                listHtml += '<span class="text-xs font-bold text-indigo-400 uppercase bg-indigo-50 px-2 py-1 rounded-md">' + escapeHtml(n.category) + '</span>';
+                listHtml += '<div class="flex items-center gap-1">';
+                listHtml += n.is_pinned ? '<span class="text-yellow-500">📌</span>' : '';
+                listHtml += n.is_favorite ? '<span class="text-red-400">⭐</span>' : '';
+                listHtml += '</div></div>';
+                listHtml += '<h3 class="font-bold text-base md:text-lg text-gray-800 mb-2 line-clamp-1">' + title + '</h3>';
+                listHtml += '<div class="text-gray-400 text-sm line-clamp-2 mb-3">' + content + '</div>';
+                listHtml += '<div class="text-xs text-gray-300">' + formatTime(n.updated_at || n.created_at) + '</div></div>';
+            }
+            list.innerHTML = listHtml;
             
             new Sortable(list, { animation: 150, onEnd: saveOrder });
         }
 
         function highlightText(text, search) {
             if (!search) return text;
-            const regex = new RegExp(\`(\${search})\`, 'gi');
+            const regex = new RegExp('(' + search + ')', 'gi');
             return text.replace(regex, '<span class="search-highlight">$1</span>');
         }
 
@@ -412,9 +400,9 @@ const HTML_CONTENT = `<!DOCTYPE html>
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     id: currentNoteId, 
-                    title, 
-                    content, 
-                    category,
+                    title: title, 
+                    content: content, 
+                    category: category,
                     is_pinned: note.is_pinned,
                     is_favorite: note.is_favorite
                 }) 
@@ -433,26 +421,31 @@ const HTML_CONTENT = `<!DOCTYPE html>
         }
         
         function renderCategoryEditList() {
-            const list = document.getElementById('category-edit-list');
-            list.innerHTML = dbCategories.map(c => `
-                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
-                    <span class="font-medium text-gray-700">${escapeHtml(c.name)}</span>
-                    <button onclick="deleteCategory(${c.id})" class="text-red-400 text-sm hover:text-red-600 font-bold">删除</button>
-                </div>`).join('');
+            let listHtml = '';
+            for (let i = 0; i < dbCategories.length; i++) {
+                const c = dbCategories[i];
+                listHtml += '<div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">';
+                listHtml += '<span class="font-medium text-gray-700">' + escapeHtml(c.name) + '</span>';
+                listHtml += '<button onclick="deleteCategory(' + c.id + ')" class="text-red-400 text-sm hover:text-red-600 font-bold">删除</button>';
+                listHtml += '</div>';
+            }
+            document.getElementById('category-edit-list').innerHTML = listHtml;
         }
 
         async function addCategory() {
             const name = document.getElementById('new-cat-name').value.trim();
-            if(!name) return;
-            await fetch('/api/categories', { method: 'POST', body: JSON.stringify({ name }) });
+            if (!name) return;
+            await fetch('/api/categories', { method: 'POST', body: JSON.stringify({ name: name }) });
             document.getElementById('new-cat-name').value = '';
             await refreshCategories();
         }
 
         async function deleteCategory(id) {
-            if(dbCategories.length <= 1) return alert('至少保留一个标签！');
-            if(confirm('删除标签不会删除该标签下的笔记，确定要删除吗？')){
-                await fetch(\`/api/categories/\${id}\`, { method: 'DELETE' });
+            if (dbCategories.length <= 1) {
+                return alert('至少保留一个标签！');
+            }
+            if (confirm('删除标签不会删除该标签下的笔记，确定要删除吗？')) {
+                await fetch('/api/categories/' + id, { method: 'DELETE' });
                 await refreshCategories();
                 loadNotes();
             }
@@ -520,8 +513,8 @@ const HTML_CONTENT = `<!DOCTYPE html>
         }
         
         async function handleDelete() { 
-            if(confirm('彻底删除这条笔记？')){ 
-                await fetch(\`/api/notes/\${currentNoteId}\`, {method:'DELETE'}); 
+            if (confirm('彻底删除这条笔记？')) { 
+                await fetch('/api/notes/' + currentNoteId, {method:'DELETE'}); 
                 hideEditor(); 
                 loadNotes(); 
             } 
@@ -529,7 +522,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
         
         async function saveOrder() {
             const order = Array.from(document.querySelectorAll('.note-card')).map(el => el.dataset.id);
-            await fetch('/api/order', { method: 'POST', body: JSON.stringify({ order }) });
+            await fetch('/api/order', { method: 'POST', body: JSON.stringify({ order: order }) });
         }
 
         // 工具函数
@@ -540,7 +533,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
         }
 
         function escapeAttr(str) {
-            return (str || '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'").replace(/"/g, '\\\\"').replace(/\\n/g, '\\\\n');
+            return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
         }
 
         function stripHtml(str) {
@@ -566,9 +559,9 @@ const HTML_CONTENT = `<!DOCTYPE html>
 export default {
     async fetch(request, env) {
         try {
-            await env.DB.prepare(\`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT)\`).run();
-            await env.DB.prepare(\`CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY, name TEXT UNIQUE)\`).run();
-            await env.DB.prepare(\`CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT, category TEXT DEFAULT '工作', sort_order INTEGER DEFAULT 0, is_pinned INTEGER DEFAULT 0, is_favorite INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)\`).run();
+            await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT)").run();
+            await env.DB.prepare("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY, name TEXT UNIQUE)").run();
+            await env.DB.prepare("CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT, category TEXT DEFAULT '工作', sort_order INTEGER DEFAULT 0, is_pinned INTEGER DEFAULT 0, is_favorite INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)").run();
             
             const userCheck = await env.DB.prepare("SELECT * FROM users LIMIT 1").first();
             if (!userCheck) {
@@ -605,7 +598,7 @@ export default {
 
         // Service Worker
         if (url.pathname === "/sw.js") {
-            const sw = \`
+            const sw = `
                 const CACHE_NAME = 'note-pro-v1';
                 self.addEventListener('install', e => self.skipWaiting());
                 self.addEventListener('activate', e => e.waitUntil(clients.claim()));
@@ -617,16 +610,16 @@ export default {
                                 caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
                             }
                             return res;
-                        })).catch(() => caches.match('/'))
+                        }).catch(() => caches.match('/'))
                     );
                 });
-            \`;
+            `;
             return new Response(sw, { headers: { "content-type": "application/javascript" } });
         }
 
         // 静态页面
         if (url.pathname === "/" || url.pathname === "/index.html") {
-            const html = HTML_CONTENT.replace('</head>', \`<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script></head>\`);
+            const html = HTML_CONTENT.replace('</head>', '<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script></head>');
             return new Response(html, { headers: { "content-type": "text/html;charset=UTF-8" } });
         }
 
@@ -634,7 +627,7 @@ export default {
         if (url.pathname === "/api/login" && request.method === "POST") {
             const { username, password } = await request.json();
             const user = await env.DB.prepare("SELECT * FROM users WHERE username = ? AND password = ?").bind(username, password).first();
-            return user ? new Response(JSON.stringify({success:true})) : new Response(JSON.stringify({error:1}), {status:401});
+            return user ? new Response(JSON.stringify({success:true})) : new Response(JSON.stringify({error:1}), {status:401}));
         }
 
         // 分类
@@ -673,7 +666,6 @@ export default {
                 return new Response(JSON.stringify({success:true}));
             }
         }
-
         if (url.pathname.startsWith("/api/notes/") && request.method === "DELETE") {
             const id = url.pathname.split("/").pop();
             await env.DB.prepare("DELETE FROM notes WHERE id = ?").bind(id).run();
